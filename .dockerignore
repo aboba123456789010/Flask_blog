@@ -1,0 +1,9 @@
+.git
+.github
+.env
+users.db
+__pycache__
+*.pyc
+.pytest_cache
+test_app.py
+test_email.py
