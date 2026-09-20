@@ -1,0 +1,38 @@
+/* ── Сброс и базовые настройки ── */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+ 
+body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #84b5ff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    flex-direction: column;
+    gap: 20px
+}
+
+.header,
+.user-actions,
+#posts-container,
+#pagination,
+h2,
+h3,
+.users-list{
+    color: #ffffff;
+    display: flex;
+    gap: 30px;
+    align-items: center;
+}
+
+.header h1{
+    font-weight: 300;
+    font-size: 100px;
+    margin:auto
+}
+ 

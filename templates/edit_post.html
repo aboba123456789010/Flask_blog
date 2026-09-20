@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Редактирование поста</title>
+</head>
+<body>
+    <h1>Редактирование поста</h1>
+    
+    <div class="edit-info">
+        <p><strong>Пост был отредактирован:</strong> {{ edit_count }} раз(а)</p>
+        {% if edit_count > 0 %}
+            <p><em>Последнее редактирование: {{ post[5] }}</em></p>
+        {% endif %}
+    </div>
+    
+    <form method="POST" action="/edit_post/{{ post[0] }}">
+        <div>
+            <label for="title">Заголовок:</label>
+            <input type="text" id="title" name="title" 
+                   value="{{ post[1] }}" required>
+        </div>
+        
+        <div>
+            <label for="content">Содержание:</label>
+            <textarea id="content" name="content" rows="10" required>{{ post[2] }}</textarea>
+        </div>
+        
+        <div>
+            <label for="category">Категория:</label>
+            <select id="category" name="category">
+                {% for category in categories %}
+                    <option value="{{ category[0] }}" 
+                            {% if category[0] == post[4] %}selected{% endif %}>
+                        {{ category[1] }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button type="submit">Сохранить изменения</button>
+        <a href="/post/{{ post[0] }}">Отмена</a>
+    </form>
+    
+    <p><a href="/">На главную</a></p>
+</body>
+</html>

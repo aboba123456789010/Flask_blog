@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мониторинг Курсов Валют</title>
+    <!-- Подключаем стили для красивой таблицы -->
+    <link href="https://jsdelivr.net" rel="stylesheet">
+</head>
+
+<body class="bg-light">
+    <div class="container mt-5" style="max-width: 800px;">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3">📊 Актуальные курсы (Flask + CoinGecko)</h1>
+            <a href="/" class="btn btn-primary btn-sm">🔄 Обновить цены</a>
+        </div>
+
+        {% if rates %}
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Валюта</th>
+                            <th>USD ($)</th>
+                            <th>EUR (€)</th>
+                            <th>RUB (₽)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Bitcoin (BTC)</strong></td>
+                            <td>${{ "{:,.2f}".format(rates.bitcoin.usd) }}</td>
+                            <td>€{{ "{:,.2f}".format(rates.bitcoin.eur) }}</td>
+                            <td>{{ "{:,.2f}".format(rates.bitcoin.rub) }} ₽</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ethereum (ETH)</strong></td>
+                            <td>${{ "{:,.2f}".format(rates.ethereum.usd) }}</td>
+                            <td>€{{ "{:,.2f}".format(rates.ethereum.eur) }}</td>
+                            <td>{{ "{:,.2f}".format(rates.ethereum.rub) }} ₽</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Solana (SOL)</strong></td>
+                            <td>${{ "{:,.2f}".format(rates.solana.usd) }}</td>
+                            <td>€{{ "{:,.2f}".format(rates.solana.eur) }}</td>
+                            <td>{{ "{:,.2f}".format(rates.solana.rub) }} ₽</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tether (USDT)</strong></td>
+                            <td>${{ "{:,.2f}".format(rates.tether.usd) }}</td>
+                            <td>€{{ "{:,.2f}".format(rates.tether.eur) }}</td>
+                            <td>{{ "{:,.2f}".format(rates.tether.rub) }} ₽</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <p class="text-muted text-end mt-2" style="font-size: 0.85rem;">* Данные обновляются при перезагрузке</p>
+        {% else %}
+        <div class="alert alert-danger" role="alert">
+            Не удалось загрузить данные. Проверьте подключение к интернету или лимиты API.
+        </div>
+        {% endif %}
+    </div>
+</body>
+
+</html>
