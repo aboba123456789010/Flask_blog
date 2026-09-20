@@ -6,23 +6,13 @@ from email.mime.text import MIMEText
 import os
 import secrets
 import time
-import hashlib
 from datetime import datetime
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
 import traceback
 import sys
 import threading
 import requests
-
-def get_prices():
-    # Запрашиваем цены Биткоина и Эфириума в USD и RUB
-    url = "https://api.coingecko.com/api/v3/simple/price"
-    params = {
-        "ids": "bitcoin,ethereum",
-        "vs_currencies": "usd,rub"
-    }
-
-
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -30,80 +20,85 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)  # Секретный ключ для сессий
 
+
+def init_db(connection):
+    """Создаёт схему БД (если её ещё нет) и наполняет справочники по умолчанию."""
+    cursor = connection.cursor()
+
+    # Создание таблицы пользователей
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                email TEXT,
+                password TEXT,
+                last_login TIMESTAMP,
+                role TEXT DEFAULT 'user'
+    )''')
+
+    # Создание таблицы категорий
+    cursor.execute('''CREATE TABLE IF NOT EXISTS categories(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT
+    )''')
+
+    # Создание таблицы постов
+    cursor.execute('''CREATE TABLE IF NOT EXISTS posts(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                content TEXT,
+                user_id INTEGER,
+                category_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                edit_count INTEGER DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (category_id) REFERENCES categories(id)
+    )''')
+
+    # Создание таблицы уведомлений
+    cursor.execute('''CREATE TABLE IF NOT EXISTS notifications(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                action TEXT,
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+    )''')
+
+    # Создание таблицы токенов аутентификации
+    cursor.execute('''CREATE TABLE IF NOT EXISTS auth_tokens(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                token TEXT UNIQUE,
+                expires_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+    )''')
+
+    default_categories = [
+        ('Программирование', 'Статьи о программировании и разработке'),
+        ('Дизайн', 'Статьи о дизайне и UX/UI'),
+        ('Путешествия', 'Рассказы о путешествиях'),
+        ('Кулинария', 'Рецепты и кулинарные советы'),
+        ('Спорт', 'Новости и статьи о спорте')
+    ]
+
+    for category in default_categories:
+        cursor.execute('INSERT OR IGNORE INTO categories(name, description) VALUES (?, ?)', category)
+
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_user_id ON posts(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_notif_user_id ON notifications(user_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_token ON auth_tokens(token)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_category_id ON posts(category_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_title ON posts(title)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_post_content ON posts(content)')
+
+    connection.commit()
+    return cursor
+
+
 # Подключение к базе данных
 conn = sqlite3.connect('users.db', check_same_thread=False)
-cur = conn.cursor()
-
-# Создание таблицы пользователей 
-cur.execute('''CREATE TABLE IF NOT EXISTS users(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            email TEXT,
-            password TEXT,
-            last_login TIMESTAMP
-)''')
-
-# Создание таблицы категорий 
-cur.execute('''CREATE TABLE IF NOT EXISTS categories(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
-            description TEXT
-)''')
-
-# Создание таблицы постов 
-cur.execute('''CREATE TABLE IF NOT EXISTS posts(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT,
-            content TEXT,
-            user_id INTEGER,
-            category_id INTEGER,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id),
-            FOREIGN KEY (category_id) REFERENCES categories(id)
-)''')
-
-# Создание таблицы уведомлений
-cur.execute('''CREATE TABLE IF NOT EXISTS notifications(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            action TEXT,
-            details TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-)''')
-
-# Создание таблицы токенов аутентификации
-cur.execute('''CREATE TABLE IF NOT EXISTS auth_tokens(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            token TEXT UNIQUE,
-            expires_at TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id)
-)''')
-
-default_categories = [
-    ('Программирование', 'Статьи о программировании и разработке'),
-    ('Дизайн', 'Статьи о дизайне и UX/UI'),
-    ('Путешествия', 'Рассказы о путешествиях'),
-    ('Кулинария', 'Рецепты и кулинарные советы'),
-    ('Спорт', 'Новости и статьи о спорте')
-]
-
-for category in default_categories:
-    cur.execute('INSERT OR IGNORE INTO categories(name, description) VALUES (?, ?)', category)
-    
-cur.execute('CREATE INDEX IF NOT EXISTS idx_user_id ON posts(user_id)')
-cur.execute('CREATE INDEX IF NOT EXISTS idx_notif_user_id ON notifications(user_id)')
-cur.execute('CREATE INDEX IF NOT EXISTS idx_token ON auth_tokens(token)')
-cur.execute('CREATE INDEX IF NOT EXISTS idx_category_id ON posts(category_id)')
-cur.execute('CREATE INDEX IF NOT EXISTS idx_post_title ON posts(title)')
-cur.execute('CREATE INDEX IF NOT EXISTS idx_post_content ON posts(content)')
-
-
-
-
-# Сохранение изменений в базе данных
-conn.commit()
+cur = init_db(conn)
 
 # Простой кэш в памяти
 cache = {}
@@ -458,9 +453,9 @@ def register():
         name = request.form.get('name')
         email = request.form.get('email')
         password = request.form.get('password')
-        user = get_user_by_email(email)        
+        user = get_user_by_email(email)
         if user is None:
-            user_id = add_user(name, email, password)
+            user_id = add_user(name, email, generate_password_hash(password))
             # Отправляем письмо
             email_sent = send_welcome_email(email, name)            
             # Логируем действие
@@ -484,8 +479,8 @@ def login():
         remember = request.form.get('remember')        
         user = get_user_by_email(email)        
         if user is None:
-            return render_template('login.html', message="Нет такой почты")        
-        if user[3] == password:
+            return render_template('login.html', message="Нет такой почты")
+        if check_password_hash(user[3], password):
             print('Вход выполнен')
             # Сохраняем в сессию
             session['user_id'] = user[0]
@@ -612,7 +607,7 @@ def add_post():
     if request.method == 'POST':
         title = request.form.get('title')
         content = request.form.get('content')
-        category_id = request.form.get('category')        
+        category_id = request.form.get('category', type=int)
         if 'user_id' in session:
             user_id = session['user_id']
         else:
@@ -643,7 +638,7 @@ def edit_post(post_id):
     
     # Проверяем, что пользователь — автор поста или админ
     user = get_user_by_id(session['user_id'])
-    is_admin = user and len(user) > 5 and user[5] == 'admin'
+    is_admin = bool(user) and user[5] == 'admin'
     
     if post[3] != session['user_id'] and not is_admin:
         return "У вас нет прав на редактирование этого поста", 403
@@ -651,8 +646,8 @@ def edit_post(post_id):
     if request.method == 'POST':
         title = request.form.get('title')
         content = request.form.get('content')
-        category_id = request.form.get('category')
-        
+        category_id = request.form.get('category', type=int)
+
         update_post(post_id, title, content, category_id)
         
         # Логируем действие
